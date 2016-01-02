@@ -1,3 +1,5 @@
+Tasks = new Mongo.Collection("tasks");
+
 // App component - represents the whole app
 App = React.createClass({
 
