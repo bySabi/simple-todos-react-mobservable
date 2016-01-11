@@ -1,26 +1,32 @@
 Tasks = new Mongo.Collection("tasks");
 
-var data = mobservable.observable({
-  tasks: Tasks.find({}, {sort: {createdAt: -1}}).fetch(),
-  incompleteCount: Tasks.find({checked: {$ne: true}}).count(),
-  currentUser: Meteor.user()
+data = mobservable.observable({
+  hideCompleted: false,
+  visibleTasks: function() {
+    if (!this.hideCompleted)
+      return this.tasks;
+    else
+      return this.tasks.filter(task => !task.checked);
+  }
 });
 
-/*
-var autorunner = Tracker.autorun(function() {
-  data(
-    Tasks.find({}, {sort: {createdAt: -1}}).fetch(),
-    Tasks.find({checked: {$ne: true}}).count(),
-    Meteor.user()
-  );
+Tracker.autorun(() => {
+  const tasks = Tasks.find({}, {sort: {createdAt: -1}}).fetch();
+  mobservable.extendObservable(data, { tasks });
 });
-*/
+Tracker.autorun(() => {
+  const incompleteCount = Tasks.find({checked: {$ne: true}}).count();
+  mobservable.extendObservable(data, { incompleteCount });
+});
+Tracker.autorun(() => {
+  const currentUser = Meteor.user();
+  mobservable.extendObservable(data, { currentUser });
+});
 
 // App component - represents the whole app
 App = mobservableReact.observer(React.createClass({
   getInitialState() {
     return {
-      hideCompleted: false,
       text: '',
     }
   },
@@ -31,8 +37,8 @@ App = mobservableReact.observer(React.createClass({
 
   renderTasks() {
     // Get tasks from this.data.tasks
-    console.log(this.data)
-    return this.data.tasks.map((task) => {
+    // console.log(this.data)
+    return this.data.visibleTasks.map((task) => {
       const currentUserId = this.data.currentUser && this.data.currentUser._id;
       const showPrivateButton = task.owner === currentUserId;
 
@@ -57,9 +63,7 @@ App = mobservableReact.observer(React.createClass({
   },
 
   toggleHideCompleted() {
-    this.setState({
-      hideCompleted: ! this.state.hideCompleted
-    });
+    this.data.hideCompleted = !this.data.hideCompleted;
   },
 
   render() {
@@ -72,7 +76,7 @@ App = mobservableReact.observer(React.createClass({
             <input
               type="checkbox"
               readOnly={true}
-              checked={this.state.hideCompleted}
+              checked={this.data.hideCompleted}
               onClick={this.toggleHideCompleted} />
             Hide Completed Tasks
           </label>
@@ -96,8 +100,4 @@ App = mobservableReact.observer(React.createClass({
       </div>
     );
   },
-
-  componentWillUnmount() {
-    autorunner.stop();
-  }
 }));
